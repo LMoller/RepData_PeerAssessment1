@@ -1,25 +1,131 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Reproducible Research Project 1"
+output: html_document
 ---
 
+##Loading and preprocessing the data
 
-## Loading and preprocessing the data
+Install Packages
+```{r}
+library(ggplot2)
+library(dplyr)
+```
 
+Load the data
+```{r}
+activity <- read.csv("activity.csv")
+```
+Convert date column to datetime
+```{r}
+activity$date <- as.Date(activity$date)
+```
 
+##What is mean total number of steps taken per day?
 
-## What is mean total number of steps taken per day?
+Plot a histogram of the total number of steps taken each day
+```{r}
+ggplot(na.omit(activity), aes(x=date, y=steps)) + geom_bar(stat="identity") + 
+  labs(main="Total Steps Per Day", x="Date", y="Total Number of Steps")
+```
 
+Calculate the total steps per day
+```{r}
+totalSteps <- activity %>% group_by(date) %>% filter(!is.na(steps)) %>%
+                summarize(totalStepsPerDay = sum(steps, na.rm=TRUE))
+totalSteps
+```
 
+Calculate the mean steps per day
+```{r}
+meanSteps<- mean(totalSteps$totalStepsPerDay, na.rm=TRUE)
+meanSteps
+```
 
-## What is the average daily activity pattern?
+Calculate the median steps per day
+```{r}
+medianSteps<- median(totalSteps$totalStepsPerDay, na.rm=TRUE)
+medianSteps
+```
 
+##What is the average daily activity pattern?
 
+Average total steps taken over 5 minute intervals
+```{r}
+totalIntSteps <- activity %>% group_by(interval) %>% filter(!is.na(steps)) %>%
+                summarize(totalStepsPerInt = mean(steps, na.rm=TRUE))
+totalIntSteps
+```
 
-## Imputing missing values
+Plot average total steps taken over 5-minute intervals
+```{r}
+ggplot(na.omit(totalIntSteps), aes(x=interval, y=totalStepsPerInt)) + geom_line() + 
+  labs(main="Average Total Steps Over 5 Minute Intervals", x="Intervals", y="Total Number of Steps")
+```
 
+Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r}
+totalIntSteps[which.max(totalIntSteps$totalStepsPerInt),]
+```
 
+##Imputing missing values
 
-## Are there differences in activity patterns between weekdays and weekends?
+Total number of missing values in the dataset
+```{r}
+sum(is.na(activity$steps))
+```
+
+Fill in the missing values in the dataset with the mean for that 5-minute interval
+```{r}
+activity2 <- activity
+
+nas <- is.na(activity2$steps)
+intervalMean <- tapply(activity2$steps, activity2$interval, mean, na.rm=TRUE, simplify=TRUE)
+activity2$steps[nas] <- intervalMean[as.character(activity2$interval[nas])]
+```
+
+Double-check there are no missing values in the dataset
+```{r}
+sum(is.na(activity2$steps))
+```
+
+Calculate number of steps taken per day
+```{r}
+stepsFilledNAs <- activity2 %>% group_by(date) %>% filter(!is.na(steps)) %>% summarize(steps = sum(steps)) %>% print
+```
+
+Plot a histogram of the total number of steps taken each day with NAs filled
+```{r}
+ggplot(na.omit(stepsFilledNAs), aes(x=date, y=steps)) + geom_bar(stat="identity") + 
+  labs(main="Total Steps Per Day", x="Date", y="Total Number of Steps")
+```
+
+Calculate the mean steps per day
+```{r}
+meanSteps2 <- mean(stepsFilledNAs$steps, na.rm=TRUE)
+meanSteps2
+```
+
+Calculate the median steps per day
+```{r}
+medianSteps2 <- median(stepsFilledNAs$steps, na.rm=TRUE)
+medianSteps2
+```
+
+##Are there differences in activity patterns between weekdays and weekends?
+
+Create a new factor variable in the dataset with two levels -- "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+```{r}
+activity2 <- mutate(activity2,weekType = ifelse(weekdays(activity2$date) == "Saturday" | weekdays(activity2$date) == "Sunday", "weekend", "weekday"))
+
+activity2$weekType <- as.factor(activity2$weekType)
+head(activity2)
+```
+
+Panel plot containing a time series plot of the 5-minute interval and the average number of steps taken, averaged across all weekday days or weekend days.
+```{r}
+intervalWeekType <- activity2 %>% group_by(interval, weekType) %>% summarize(steps = mean(steps))
+
+weekTypePlot <- ggplot(intervalWeekType, aes(x=interval, y=steps, color = weekType)) + geom_line() + 
+        facet_wrap(~weekType, ncol = 1, nrow=2)
+print(weekTypePlot)
+```
